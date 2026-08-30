@@ -1,0 +1,6 @@
+{
+	email gary@wallage.org.uk
+}
+
+# This imports everything in alphabetical order
+import /etc/caddy/conf.d/*.conf

@@ -1,0 +1,5 @@
+authentik-certs/
+authentik-media/
+*.sql
+*.old
+.env

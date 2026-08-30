@@ -1,0 +1,9 @@
+garywallage.uk, www.garywallage.uk {
+    import cloudflare_tls
+    import performance
+
+    # Route directly to the high-speed standalone Master Portal Hub
+    reverse_proxy gwp-hub_web:80 {
+        import proxy_optimizations
+    }
+}

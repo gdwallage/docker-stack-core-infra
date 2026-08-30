@@ -1,0 +1,84 @@
+version: '3.9'
+
+services:
+  caddy:
+    image: serfriz/caddy-cloudflare:latest
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports:
+      - { target: 80, published: 80, mode: host }
+      - { target: 443, published: 443, mode: host }
+    environment:
+      - CLOUDFLARE_EMAIL=gary@garywallage.uk
+      - CLOUDFLARE_API_TOKEN=eBg1tGYrL35WYaAaTpV6R2i-Tk3HZO62CR6WIwz4
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/docker-stacks/core-infra/Caddyfile:/etc/caddy/Caddyfile
+      - /opt/docker-stacks/core-infra/caddy-conf.d:/etc/caddy/conf.d:ro
+      - /opt/docker-stacks/gary-portfolio/html:/var/www/html
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [zone_dmz, zone_internal]
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: on-failure, delay: 5s }
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:2026.8.0
+    command: server
+    environment:
+      AUTHENTIK_SECRET_KEY: "tTvsIOJDMHTZaGV9L31z5QZvwaYaIiccdGFLWUGG4nTJpqbP"
+      AUTHENTIK_POSTGRESQL__PASSWORD: "zt8RkL+FiYwf6XcRXZMKKsRrDC0j6Ybs"
+      AUTHENTIK_POSTGRESQL__HOST: databases_postgres
+      AUTHENTIK_REDIS__HOST: databases_redis
+      AUTHENTIK_HOST: https://auth.wallage.org.uk
+      AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/docker-stacks/core-infra/authentik-media:/media
+      - /opt/docker-stacks/core-infra/authentik-certs:/certs
+    networks: [zone_internal, zone_dmz]
+    healthcheck:
+      test: ["CMD-SHELL", "ak healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    deploy:
+      placement: { constraints: [node.hostname == ubuntu-server] }
+      restart_policy: { condition: on-failure, delay: 10s }
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2026.8.0
+    command: worker
+    environment:
+      AUTHENTIK_SECRET_KEY: "tTvsIOJDMHTZaGV9L31z5QZvwaYaIiccdGFLWUGG4nTJpqbP"
+      AUTHENTIK_POSTGRESQL__PASSWORD: "zt8RkL+FiYwf6XcRXZMKKsRrDC0j6Ybs"
+      AUTHENTIK_POSTGRESQL__HOST: databases_postgres
+      AUTHENTIK_REDIS__HOST: databases_redis
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/docker-stacks/core-infra/authentik-media:/media
+    networks: [zone_internal, zone_dmz]
+    deploy:
+      placement: { constraints: [node.hostname == ubuntu-server] }
+      restart_policy: { condition: on-failure, delay: 10s }
+
+  shepherd:
+    image: ghcr.io/containrrr/shepherd:latest
+    environment:
+      SLEEP_TIME: "3600"
+      WITH_REGISTRY_AUTH: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [zone_internal]
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: on-failure, delay: 5s }
+
+networks:
+  zone_dmz: { external: true }
+  zone_internal: { external: true }
+
+volumes:
+  caddy_data:
+  caddy_config:
